@@ -4,20 +4,27 @@ port module Main exposing (..)
 
 This application is broken up into three key parts:
 
-  1. Model  - a full definition of the application's state
-  2. Update - a way to step the application state forward
-  3. View   - a way to visualize our application state with HTML
+1.  Model - a full definition of the application's state
+2.  Update - a way to step the application state forward
+3.  View - a way to visualize our application state with HTML
 
 This clean division of concerns is a core part of Elm. You can read more about
 this in <http://guide.elm-lang.org/architecture/index.html>
+
 -}
 
 import Browser
 import Browser.Dom as Dom
+import Element exposing (Element)
+import Element.Events as Events
+import Element.Input as Input
+import Element.Keyed as Keyed
+import Element.Lazy as Lazy
+import Element.Region as Region
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import Html.Keyed as Keyed
+import Html.Keyed as Keyed_
 import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
 import Task
@@ -27,7 +34,15 @@ main : Program (Maybe Model) Model Msg
 main =
     Browser.document
         { init = init
-        , view = \model -> { title = "Elm • TodoMVC", body = [view model] }
+        , view =
+            \model ->
+                { title = "Elm • TodoMVC"
+                , body =
+                    [ view_ model
+                    , hr [] []
+                    , Element.layout [] (view model)
+                    ]
+                }
         , update = updateWithStorage
         , subscriptions = \_ -> Sub.none
         }
@@ -45,16 +60,16 @@ updateWithStorage msg model =
         ( newModel, cmds ) =
             update msg model
     in
-        ( newModel
-        , Cmd.batch [ setStorage newModel, cmds ]
-        )
+    ( newModel
+    , Cmd.batch [ setStorage newModel, cmds ]
+    )
 
 
 
 -- MODEL
-
-
 -- The full application state of our todo app.
+
+
 type alias Model =
     { entries : List Entry
     , field : String
@@ -91,9 +106,9 @@ newEntry desc id =
 
 init : Maybe Model -> ( Model, Cmd Msg )
 init maybeModel =
-  ( Maybe.withDefault emptyModel maybeModel
-  , Cmd.none
-  )
+    ( Maybe.withDefault emptyModel maybeModel
+    , Cmd.none
+    )
 
 
 
@@ -119,6 +134,8 @@ type Msg
 
 
 -- How we update our Model on a given Msg?
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -132,6 +149,7 @@ update msg model =
                 , entries =
                     if String.isEmpty model.field then
                         model.entries
+
                     else
                         model.entries ++ [ newEntry model.field model.uid ]
               }
@@ -148,6 +166,7 @@ update msg model =
                 updateEntry t =
                     if t.id == id then
                         { t | editing = isEditing }
+
                     else
                         t
 
@@ -163,6 +182,7 @@ update msg model =
                 updateEntry t =
                     if t.id == id then
                         { t | description = task }
+
                     else
                         t
             in
@@ -185,6 +205,7 @@ update msg model =
                 updateEntry t =
                     if t.id == id then
                         { t | completed = isCompleted }
+
                     else
                         t
             in
@@ -211,24 +232,40 @@ update msg model =
 -- VIEW
 
 
-view : Model -> Html Msg
-view model =
+todoLog : String -> Element msg
+todoLog functionCall =
+    Element.text functionCall |> Debug.log functionCall
+
+
+view_ : Model -> Html Msg
+view_ model =
     div
         [ class "todomvc-wrapper"
         , style "visibility" "hidden"
         ]
         [ section
             [ class "todoapp" ]
-            [ lazy viewInput model.field
-            , lazy2 viewEntries model.visibility model.entries
+            [ lazy viewInput_ model.field
+            , lazy2 viewEntries_ model.visibility model.entries
             , lazy2 viewControls model.visibility model.entries
             ]
         , infoFooter
         ]
 
 
-viewInput : String -> Html Msg
-viewInput task =
+view : Model -> Element Msg
+view model =
+    Element.column [ Element.width Element.fill, Element.height Element.fill ]
+        [ Element.column []
+            [ Lazy.lazy viewInput model.field
+            , Lazy.lazy2 viewEntries model.visibility model.entries
+            , todoLog "lazy2 viewControls model.visibility model.entries"
+            ]
+        ]
+
+
+viewInput_ : String -> Html Msg
+viewInput_ task =
     header
         [ class "header" ]
         [ h1 [] [ text "todos" ]
@@ -245,23 +282,81 @@ viewInput task =
         ]
 
 
+viewInput : String -> Element Msg
+viewInput task =
+    Element.column [ Element.htmlAttribute <| onEnter Add ]
+        [ Element.el [ Region.heading 1 ] <| Element.text "todos"
+        , Input.text []
+            { onChange = UpdateField
+            , text = task
+            , placeholder = Just <| Input.placeholder [] <| Element.text "What needs to be done?"
+            , label = Input.labelHidden "todo text input"
+            }
+        ]
+
+
 onEnter : Msg -> Attribute Msg
 onEnter msg =
     let
         isEnter code =
             if code == 13 then
                 Json.succeed msg
+
             else
                 Json.fail "not ENTER"
     in
-        on "keydown" (Json.andThen isEnter keyCode)
+    on "keydown" (Json.andThen isEnter keyCode)
 
 
 
 -- VIEW ALL ENTRIES
 
 
-viewEntries : String -> List Entry -> Html Msg
+viewEntries_ : String -> List Entry -> Html Msg
+viewEntries_ visibility entries =
+    let
+        isVisible todo =
+            case visibility of
+                "Completed" ->
+                    todo.completed
+
+                "Active" ->
+                    not todo.completed
+
+                _ ->
+                    True
+
+        allCompleted =
+            List.all .completed entries
+
+        cssVisibility =
+            if List.isEmpty entries then
+                "hidden"
+
+            else
+                "visible"
+    in
+    section
+        [ class "main"
+        , style "visibility" cssVisibility
+        ]
+        [ input
+            [ class "toggle-all"
+            , type_ "checkbox"
+            , name "toggle"
+            , checked allCompleted
+            , onClick (CheckAll (not allCompleted))
+            ]
+            []
+        , label
+            [ for "toggle-all" ]
+            [ text "Mark all as complete" ]
+        , Keyed_.ul [ class "todo-list" ] <|
+            List.map viewKeyedEntry_ (List.filter isVisible entries)
+        ]
+
+
+viewEntries : String -> List Entry -> Element Msg
 viewEntries visibility entries =
     let
         isVisible todo =
@@ -281,40 +376,32 @@ viewEntries visibility entries =
         cssVisibility =
             if List.isEmpty entries then
                 "hidden"
+
             else
                 "visible"
     in
-        section
-            [ class "main"
-            , style "visibility" cssVisibility
-            ]
-            [ input
-                [ class "toggle-all"
-                , type_ "checkbox"
-                , name "toggle"
-                , checked allCompleted
-                , onClick (CheckAll (not allCompleted))
-                ]
-                []
-            , label
-                [ for "toggle-all" ]
-                [ text "Mark all as complete" ]
-            , Keyed.ul [ class "todo-list" ] <|
-                List.map viewKeyedEntry (List.filter isVisible entries)
-            ]
+    Element.column []
+        [ Element.el [ Events.onClick (CheckAll (not allCompleted)) ] <| Input.defaultCheckbox allCompleted
+        , Keyed.column [] <| List.map viewKeyedEntry (List.filter isVisible entries)
+        ]
 
 
 
 -- VIEW INDIVIDUAL ENTRIES
 
 
-viewKeyedEntry : Entry -> ( String, Html Msg )
+viewKeyedEntry_ : Entry -> ( String, Html Msg )
+viewKeyedEntry_ todo =
+    ( String.fromInt todo.id, lazy viewEntry_ todo )
+
+
+viewKeyedEntry : Entry -> ( String, Element Msg )
 viewKeyedEntry todo =
-    ( String.fromInt todo.id, lazy viewEntry todo )
+    ( String.fromInt todo.id, Lazy.lazy viewEntry todo )
 
 
-viewEntry : Entry -> Html Msg
-viewEntry todo =
+viewEntry_ : Entry -> Html Msg
+viewEntry_ todo =
     li
         [ classList [ ( "completed", todo.completed ), ( "editing", todo.editing ) ] ]
         [ div
@@ -348,6 +435,11 @@ viewEntry todo =
         ]
 
 
+viewEntry : Entry -> Element Msg
+viewEntry todo =
+    todoLog "viewEntry - implement"
+
+
 
 -- VIEW CONTROLS AND FOOTER
 
@@ -361,14 +453,14 @@ viewControls visibility entries =
         entriesLeft =
             List.length entries - entriesCompleted
     in
-        footer
-            [ class "footer"
-            , hidden (List.isEmpty entries)
-            ]
-            [ lazy viewControlsCount entriesLeft
-            , lazy viewControlsFilters visibility
-            , lazy viewControlsClear entriesCompleted
-            ]
+    footer
+        [ class "footer"
+        , hidden (List.isEmpty entries)
+        ]
+        [ lazy viewControlsCount entriesLeft
+        , lazy viewControlsFilters visibility
+        , lazy viewControlsClear entriesCompleted
+        ]
 
 
 viewControlsCount : Int -> Html Msg
@@ -377,14 +469,15 @@ viewControlsCount entriesLeft =
         item_ =
             if entriesLeft == 1 then
                 " item"
+
             else
                 " items"
     in
-        span
-            [ class "todo-count" ]
-            [ strong [] [ text (String.fromInt entriesLeft) ]
-            , text (item_ ++ " left")
-            ]
+    span
+        [ class "todo-count" ]
+        [ strong [] [ text (String.fromInt entriesLeft) ]
+        , text (item_ ++ " left")
+        ]
 
 
 viewControlsFilters : String -> Html Msg
