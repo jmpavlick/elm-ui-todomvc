@@ -1,0 +1,23 @@
+{
+  "name": "elm-ui-todomvc",
+  "version": "1.0.0",
+  "description": "All of the Elm code lives in `src/Main.elm` and relies on the [elm/html][html] library.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmpavlick/elm-ui-todomvc.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jmpavlick/elm-ui-todomvc/issues"
+  },
+  "homepage": "https://github.com/jmpavlick/elm-ui-todomvc#readme",
+  "dependencies": {
+    "elm": "^0.19.1-5",
+    "elm-go": "^5.0.19"
+  }
+}
