@@ -4,7 +4,7 @@
   "description": "All of the Elm code lives in `src/Main.elm` and relies on the [elm/html][html] library.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "elm-go src/Main.elm --open --pushstate -- --output=elm.js --debug"
   },
   "repository": {
     "type": "git",
